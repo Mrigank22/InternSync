@@ -13,7 +13,7 @@
         </div>
         <div class="col-lg-4 text-lg-end">
             <a href="" class="btn btn-outline-primary">Edit Company Profile</a>
-            <a href="" class="btn btn-primary ms-2">Post New Opportunity</a>
+            <a href="{% url 'create_job' %}" class="btn btn-primary ms-2">Post New Opportunity</a>
         </div>
     </div>
 
@@ -120,7 +120,7 @@
                             <img src="{% static 'images/no-jobs.svg' %}" alt="No Jobs" class="mb-3" width="120">
                             <h6>No active positions</h6>
                             <p class="text-muted">Post your first internship opportunity to get started</p>
-                            <a href="" class="btn btn-primary mt-2">Post New Opportunity</a>
+                            <a href="{% url 'create_job' %}" class="btn btn-primary mt-2">Post New Opportunity</a>
                         </div>
                     {% endif %}
                 </div>

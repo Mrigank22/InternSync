@@ -26,12 +26,16 @@ class CustomUser(AbstractUser):
     
 class Student(models.Model):
     user = models.OneToOneField(CustomUser,on_delete=models.CASCADE,primary_key=True)
+    cv = models.FileField(upload_to='cv_files/', blank=True, null=True)
     cv_approved_status = models.BooleanField(default=False)
     job_status = models.BooleanField(default=False)
 
     def __str__(self):
         return self.user.username
     
+    def has_cv(self):
+        return bool(self.cv)
+
 class Recruiter(models.Model):
     user = models.OneToOneField(CustomUser,on_delete=models.CASCADE,primary_key=True)
     company_name = models.CharField(max_length=50)
