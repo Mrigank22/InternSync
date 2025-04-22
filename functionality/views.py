@@ -1,7 +1,7 @@
 from django.shortcuts import render,redirect,get_object_or_404
 from authentication.decorators import student_required,recruiter_required
 from django.contrib import messages
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, FileResponse
 from .forms import CVUploadForm
 from .models import Job, Application
 from .forms import JobCreationForm, JobApplicationForm
@@ -72,7 +72,7 @@ def search_job(request):
     location = request.GET.get('location', '')
     if location:
         jobs = jobs.filter(location=location)
-    
+        
     # Filter by selection type
     selection_type = request.GET.get('selection_type', '')
     if selection_type:
@@ -140,3 +140,81 @@ def apply_job(request, job_id):
     }
     
     return render(request, 'apply_job.html', context)
+
+@recruiter_required
+def update_application_status(request, application_id, new_status):
+    recruiter = request.user.recruiter
+    application = get_object_or_404(Application, id=application_id, job__recruiter=recruiter)
+
+    # Validate the status
+    valid_statuses = [choice[0] for choice in Application.STATUS_CHOICES]
+    if new_status not in valid_statuses:
+        messages.error(request, "Invalid application status.")
+    else:
+        application.status = new_status
+        application.save()
+        status_display = dict(Application.STATUS_CHOICES)[new_status]
+        messages.success(request, f"Application status updated to {status_display}.")
+
+    # Render the all_applications.html template with fresh data
+    applications = Application.objects.filter(job__recruiter=recruiter).order_by('-applied_date')
+    
+    # Apply the same filters as in all_applications view
+    status_filter = request.GET.get('status', None)
+    if status_filter:
+        applications = applications.filter(status=status_filter)
+
+    job_filter = request.GET.get('job', None)
+    if job_filter:
+        applications = applications.filter(job_id=job_filter)
+
+    jobs = Job.objects.filter(recruiter=recruiter)
+
+    context = {
+        'applications': applications,
+        'jobs': jobs,
+    }
+
+    return render(request, 'all_applications.html', context)
+
+
+@recruiter_required
+def all_applications(request):
+    recruiter = request.user.recruiter
+
+    applications = Application.objects.filter(job__recruiter=recruiter).order_by('-applied_date')
+
+    status_filter = request.GET.get('status', None)
+    if status_filter:
+        applications = applications.filter(status=status_filter)
+
+    jobs = Job.objects.filter(recruiter=recruiter)
+
+    job_filter = request.GET.get('job', None)
+    if job_filter:
+        applications = applications.filter(job_id=job_filter)
+
+    context = {
+        'applications': applications,
+        'jobs': jobs,
+    }
+
+    return render(request, 'all_applications.html', context)
+
+
+@recruiter_required
+def download_cv(request, application_id):
+    recruiter = request.user.recruiter
+    application = get_object_or_404(Application, id=application_id, job__recruiter=recruiter)
+    
+    # Check if student has a CV
+    if not application.student.cv:
+        messages.error(request, "This student has not uploaded a CV.")
+        return redirect('view_applicants', job_id=application.job.id)
+    
+    # Serve the CV file
+    try:
+        return FileResponse(application.student.cv.open(), as_attachment=True, filename=f"{application.student.user.get_full_name()}_CV.pdf")
+    except Exception as e:
+        messages.error(request, f"Error downloading CV: {str(e)}")
+        return redirect('view_applicants', job_id=application.job.id)

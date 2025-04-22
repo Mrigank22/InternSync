@@ -7,6 +7,9 @@ from django.db import transaction
 from .forms import SignUpForm,CustomUserForm,StudentProfileForm,RecruiterProfileForm
 from .models import CustomUser, Student, Recruiter
 from .decorators import student_required, recruiter_required
+from functionality.models import Application,Job
+from django.utils import timezone
+
 
 def landing(request):
     return render(request, 'landing.html')
@@ -72,10 +75,47 @@ def student_dashboard(request):
 
 @recruiter_required
 def recruiter_dashboard(request):
+    # Get the current recruiter
     recruiter = request.user.recruiter
-    context = {
-        'company_name': recruiter.company_name,
+    
+    # Get all jobs created by this recruiter
+    all_jobs = Job.objects.filter(recruiter=recruiter)
+    
+    # Add application count to each job
+    active_jobs = all_jobs.filter(is_active=True, last_date_to_apply__gt=timezone.now())
+    for job in active_jobs:
+        job.applications_count = Application.objects.filter(job=job).count()
+    
+    # Get recent applications for the recruiter's jobs
+    # Optional: Filter by status if provided in query params
+    status_filter = request.GET.get('status', None)
+    
+    applications_query = Application.objects.filter(job__recruiter=recruiter)
+    if status_filter:
+        applications_query = applications_query.filter(status=status_filter)
+    
+    recent_applications = applications_query.order_by('-applied_date')[:10]
+    
+    # Calculate dashboard statistics
+    stats = {
+        'active_jobs_count': active_jobs.count(),
+        'total_applications': Application.objects.filter(job__recruiter=recruiter).count(),
+        'in_process_count': Application.objects.filter(
+            job__recruiter=recruiter,
+            status__in=['under_review', 'shortlisted_oa', 'completed_oa', 'shortlisted_interview']
+        ).count(),
+        'positions_filled': Application.objects.filter(
+            job__recruiter=recruiter,
+            status='selected'
+        ).count(),
     }
+    
+    context = {
+        'active_jobs': active_jobs,
+        'recent_applications': recent_applications,
+        'stats': stats,
+    }
+    
     return render(request, 'recruiter_dashboard.html', context)
 
 @login_required
